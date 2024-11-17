@@ -1,0 +1,3 @@
+/Users/kaitlynhuynh/Documents/schoolwork/ai/project2/cmake-build-debug/CMakeFiles/project2.dir
+/Users/kaitlynhuynh/Documents/schoolwork/ai/project2/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/kaitlynhuynh/Documents/schoolwork/ai/project2/cmake-build-debug/CMakeFiles/rebuild_cache.dir
