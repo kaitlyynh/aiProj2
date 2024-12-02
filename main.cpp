@@ -24,7 +24,7 @@ const int NUM_ROWS_COLS = 9,
 const int BLANK = 0,
         WHITE = 1,
         BLACK = 2;
-const set<int> g_domain = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+const set<int> DOMAIN = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 vector<vector<int>> g_board;
 vector<vector<int>> g_horizontal_dots;
 vector<vector<int>> g_vertical_dots;
@@ -37,21 +37,45 @@ map<pair<int, int>, set<int>> g_subgrid_to_values; // map subgrid coordinates to
 void parse_file(const string& filepath); // Populate board and constraint matrices
 void print_matrix(const vector<vector<int>>& matrix); // Print a matrix
 void initialize(); // Initialize the board and auxiliary data structures
-void backtrack(); // Perform backtracking to solve the puzzle
-pair<int,int> select_unassigned_variable(const vector<vector<int>>& state); /*Uses
+bool backtrack(vector<vector<int>> board); // Perform backtracking to solve the puzzle
+pair<int,int> select_unassigned_variable(const vector<vector<int>>& board); /*Uses
 MRV and DH to select an unassigned variable*/
-vector<pair<int,int>> mrv(const vector<vector<int>>& state);// calculates Minimum remaining value
+vector<pair<int,int>> mrv(const vector<vector<int>>& g_assignment);// calculates Minimum remaining value
 pair<int, int> degree_heuristic(const vector<pair<int,int>>& mrv_array); // uses degree heuristic to select
 // variable
 bool horizontal_dots(int row, int col, int val); // verify horizontal constraints
 bool vertical_dots(int row, int col, int val); // verify vertical constraints
 bool check_dot_constraints(int row, int col, int val);// verify dot constraints
 
-bool consistent(const vector<vector<int>>& state);
+bool consistent(const vector<vector<int>>& board, int row, int col, int val);
+bool is_complete(vector<vector<int>> board);
+
+//Function definitions
+int main(int argc, char* argv[]) {
+   if (argc != 2) {cerr << "Requires input file\n"; return -1;}
+   string file_name = argv[1];
+
+    // string file_name = "Sample_Input.txt";
+    parse_file(file_name);
+    initialize();
+    // print_matrix(g_board);
+    // cout << endl;
+    // print_matrix(g_horizontal_dots);
+    // cout << endl;
+    // print_matrix(g_vertical_dots);
+    
+    
+    backtrack(g_board);
+    print_matrix(g_board);
+
+
+
+}
 
 void parse_file(const string& filepath) { // populate board & constraint matrices
     ifstream file_obj(filepath);
     string line;
+    
     for (int i = 0; i < NUM_CELL_GROUPS; i++) {
         for (int j = 0; j < NUM_ROWS_COLS; j++) {
             getline(file_obj, line);
@@ -84,18 +108,19 @@ void print_matrix(const vector<vector<int>>& matrix) {
     }
 }
 
-pair<int,int> select_unassigned_variable(const vector<vector<int>>& state){
 
-    return degree_heuristic(mrv(state));
-
+pair<int,int> select_unassigned_variable(const vector<vector<int>>& board){
+    return degree_heuristic(mrv(board));
 }
-bool is_unique(const vector<vector<int>>& state,
+
+
+bool is_unique(const vector<vector<int>>& g_assignment,
                int row, int col, int val) {
-    for (int x : state[row]){
+    for (int x : g_assignment[row]){
         if (x == val) return false;
     }
-    for (int r = 0; r < 9; ++r){
-        if (state[r][col] == val) return false;
+    for (int r = 0; r < NUM_ROWS_COLS; ++r){
+        if (g_assignment[r][col] == val) return false;
     }
     int row_start = row / 3;
     int col_start = col / 3;
@@ -147,10 +172,10 @@ bool vertical_dots(int row, int col, int val) {
 
 // Verify whether a position violates dot constraints
 bool check_dot_constraints(int row, int col, int val) {
-    return horizontal_dots(row, col, val) && vertical_dots(row, col, val);
+    return horizontal_dots(row, col, val) && vertical_dots( row - !(row % 2), col, val);
 }
-bool consistent(const vector<vector<int>>& state, int row, int col, int val) {
-    return check_dot_constraints(row, col, val) && is_unique(state, row, col, val) ;
+bool consistent(const vector<vector<int>>& board, int row, int col, int val) {
+    return check_dot_constraints(row, col, val) && is_unique(board, row, col, val) ;
 }
 pair<int, int> degree_heuristic(const vector<pair<int,int>>& mrv_array) {
     int constraints = 1; // all diff
@@ -170,21 +195,23 @@ pair<int, int> degree_heuristic(const vector<pair<int,int>>& mrv_array) {
     }
     return mrv_array[max_idx];
 }
-vector<pair<int,int>> mrv(const vector<vector<int>>& state) {
+vector<pair<int,int>> mrv(const vector<vector<int>>& board) {
     int min_count = 10;
     vector<pair<int,int>> candidates;
     for (int i = 0; i < 9; i++) {
         for (int j = 0; j < 9; j++) {
+            if (board[i][j] != 0){continue;}
             int legal_states = 0;
-            for (int val: g_domain){
-                if (consistent(state, i, j, val)){
+            for (int val: DOMAIN){
+                if (consistent(board, i, j, val)){
                     ++legal_states;
                 }
                 if (legal_states < min_count) {
                     candidates.clear();
                     candidates.push_back({i, j});
                     min_count = legal_states;
-                } else if (legal_states == min_count) {
+                } 
+                else if (legal_states == min_count) {
                     candidates.push_back({i, j});
                 }
             }
@@ -200,29 +227,40 @@ void initialize() {
             pair<int, int> subgrid_coords = {i / 3, j / 3};
             if (g_board[i][j] != 0) { // add val to set, row & cols
                 g_subgrid_to_values[subgrid_coords].insert(g_board[i][j]);
-                g_row_to_values[i].insert(g_board[i][j]);
-                g_col_to_values[j].insert(g_board[i][j]);
             }
         }
     }
 }
 
-int main(int argc, char* argv[]) {
-//    if (argc != 2) {cerr << "Requires input file\n"; return -1;}
-//    string file_name = argv[1];
 
-    string file_name = "Sample_Input.txt";
-    parse_file(file_name);
-
-    initialize();
-
-
-}
-
-void backtrack(vector<vector<int>>& csp, vector<int>& state) {
-    for (int i = 0; i < NUM_ROWS_COLS; i++) {
-        for (int j = 0; j < NUM_ROWS_COLS; j++) {
-            continue;
+bool is_complete( vector<vector<int>> board) {
+    for (int r = 0; r < 9; r++) {
+        for (int c = 0; c < 9; c++) {
+            if (board[r][c] == 0) {
+                return false;
+            }
         }
     }
+    return true;
+}
+
+
+bool backtrack(vector<vector<int>> board) {
+    //if every variable has a value??
+    if (is_complete(board)) return true;
+    //select unassigned variable with mrv and dh
+    pair<int, int> var = select_unassigned_variable(board);
+    // for each value in domain check if value is consistent with g_assignment 
+    for (int val : DOMAIN){
+        if (consistent(board, var.first, var.second, val)){
+            vector<vector<int>> next_board = board;
+            next_board[var.first][var.second] = val; 
+            if (backtrack(next_board) == true){
+                board = next_board;
+                return true;
+            }
+        }
+        
+    }
+    return false;
 }
