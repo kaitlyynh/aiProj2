@@ -222,9 +222,7 @@ int main(int argc, char* argv[]) {
 void backtrack(vector<vector<int>>& csp, vector<int>& state) {
     for (int i = 0; i < NUM_ROWS_COLS; i++) {
         for (int j = 0; j < NUM_ROWS_COLS; j++) {
-                continue;
-            }
+            continue;
         }
+    }
 }
-
-
