@@ -1,266 +1,248 @@
-#include <iostream>
-#include <vector>
-#include <fstream>
-#include <sstream>
-#include <map>
-#include <set>
-using namespace std;
-/*
- * Constraints:
- *  - white dot btwn adjacent cells require abs(cell_1 - cell_2) = 1
- *  - black dot btwn adjacent cells require one to be double of the other
- *  Notes:
- *  horizontal constraints are between the current cell & the immediate right
- *  vertical constraints are between the current cell & directly below it
- */
+import sys
+# N is the size of the 2D matrix   N*N
+N = 9
 
-struct Cell {
-    int val;
-    set<int> domain = {1, 2, 3, 4, 5, 6, 7, 8, 9};
-};
-const int NUM_ROWS_COLS = 9,
-        NUM_CELL_GROUPS = 3;
-
-const int BLANK = 0,
-        WHITE = 1,
-        BLACK = 2;
-const set<int> DOMAIN = {1, 2, 3, 4, 5, 6, 7, 8, 9};
-vector<vector<int>> g_board;
-vector<vector<int>> g_horizontal_dots;
-vector<vector<int>> g_vertical_dots;
-map<int, set<int>> g_row_to_values; // map row # to vals in row
-map<int, set<int>> g_col_to_values; // map col # to vals in col
-map<pair<int, int>, set<int>> g_subgrid_to_values; // map subgrid coordinates to vals in subgrid
-
-
-//Prototypes
-void parse_file(const string& filepath); // Populate board and constraint matrices
-void print_matrix(const vector<vector<int>>& matrix); // Print a matrix
-void initialize(); // Initialize the board and auxiliary data structures
-bool backtrack(vector<vector<int>> board); // Perform backtracking to solve the puzzle
-pair<int,int> select_unassigned_variable(const vector<vector<int>>& board); /*Uses
-MRV and DH to select an unassigned variable*/
-vector<pair<int,int>> mrv(const vector<vector<int>>& g_assignment);// calculates Minimum remaining value
-pair<int, int> degree_heuristic(const vector<pair<int,int>>& mrv_array); // uses degree heuristic to select
-// variable
-bool horizontal_dots(int row, int col, int val); // verify horizontal constraints
-bool vertical_dots(int row, int col, int val); // verify vertical constraints
-bool check_dot_constraints(int row, int col, int val);// verify dot constraints
-
-bool consistent(const vector<vector<int>>& board, int row, int col, int val);
-bool is_complete(vector<vector<int>> board);
-
-//Function definitions
-int main(int argc, char* argv[]) {
-   if (argc != 2) {cerr << "Requires input file\n"; return -1;}
-   string file_name = argv[1];
-
-    // string file_name = "Sample_Input.txt";
-    parse_file(file_name);
-    initialize();
-    // print_matrix(g_board);
-    // cout << endl;
-    // print_matrix(g_horizontal_dots);
-    // cout << endl;
-    // print_matrix(g_vertical_dots);
     
+
+            
+# A utility function to print grid
+def printing(arr):
+    for i in range(len(arr)):
+        for j in range(len(arr[i])):
+            print(arr[i][j], end = " ")
+        print()
+    print()
+
+#
+def check_white(grid, row, col, num):
+    other = grid[row][col]
+    if other == 0: return False
+    return abs(other - num) == 1
     
-    backtrack(g_board);
-    print_matrix(g_board);
+def check_black(grid, row, col, num):
+    other = grid[row][col]
+    if other == 0: return False
+    return (other / num) == 0.5 or (other / num) == 2
 
-
-
-}
-
-void parse_file(const string& filepath) { // populate board & constraint matrices
-    ifstream file_obj(filepath);
-    string line;
+# verify if white constraint is satisfied horizontally
+def check_white_row(grid, row, col, num):
+    cell1_val = grid[row][col]
+    return abs(cell1_val - num) == 1
     
-    for (int i = 0; i < NUM_CELL_GROUPS; i++) {
-        for (int j = 0; j < NUM_ROWS_COLS; j++) {
-            getline(file_obj, line);
-            vector<int> row;
-            istringstream ss(line);
-            int number;
-            while (ss >> number && row.size() < NUM_ROWS_COLS) {
-                row.push_back(number);
-            }
-            if (i == 0) {
-                g_board.push_back(row);
-            } else if (i == 1) {
-                g_horizontal_dots.push_back(row);
-            } else if (i == 2 && j < (NUM_ROWS_COLS - 1)) {
-                g_vertical_dots.push_back(row);
-            }
-            if ((i == 0 || i == 1) && (j == (NUM_ROWS_COLS - 1))) {
-                getline(file_obj, line);
-            }
-        }
-    }
-    file_obj.close();
-}
+def check_black_row(grid, row, col, num):
+    
+    cell1_val = grid[row][col]
+    return (cell1_val / num) == 0.5 or (cell1_val / num) == 2
+
+#verify if constraint is satisfied vertically
+def check_white_col(grid, row, col, num):
+   
+    cell1_val = grid[row][col]
+    return abs(cell1_val - num) == 1
+    
+def check_black_col(grid, row, col, num):
+    cell1_val = grid[row][col]
+    return (cell1_val / num) == 0.5 or (cell1_val / num) == 2
+
+def isSafe(grid, row, col, num, rbw, cbw): # pass in RowBlackWhite (horizontal constraints) matrix
+    
+    for x in range(9):
+        if grid[row][x] == num:
+            return False # violated unique row constraint
+
+    for x in range(9):
+        if grid[x][col] == num:
+            return False # violated unique column constraint
+
+    startRow = row - row % 3
+    startCol = col - col % 3
+    for i in range(3):
+        for j in range(3):
+            if grid[i + startRow][j + startCol] == num:
+                return False
+
+   
+    dot_constraints = True
+    # case 1: dot b/w me and left
+    # col - 1
+    if 0 <= row < len(rbw) and 0 <= col - 1 < len(rbw[0]):
+        if rbw[row][col - 1] == 1 and not check_white(grid, row, col - 1, num): return False
+        elif rbw[row][col - 1] == 2 and  not  check_black(grid, row, col - 1, num): return False
+    # case 2 : dot b/w me and right
+    # col 
+    if 0 <= row < len(rbw) and 0 <= col < len(rbw[0]):
+        if rbw[row][col] == 1 and not check_white(grid, row, col, num): return False
+        elif rbw[row][col] == 2 and  not  check_black(grid, row, col, num): return False
+    #case 3: dot b/w me and above
+    # row - 1 
+    if 0 <= row - 1 < len(cbw) and 0 <= col  < len(cbw[0]):
+        if cbw[row - 1][col] == 1 and not check_white(grid, row - 1, col, num): return False
+        elif cbw[row - 1][col] == 2 and not check_black(grid, row - 1, col, num): return False
+    # case 4: dot b/w me and below
+    # row
+    if 0 <= row < len(cbw) and 0 <= col < len(cbw[0]):
+        if cbw[row][col] == 1 and not check_white(grid, row, col, num): return False
+        elif cbw[row][col] == 2 and not check_black(grid, row, col, num): return False
+    # print(row, " ,", col, " Dot: ", dot_constraints)
+    return True
 
 
-void print_matrix(const vector<vector<int>>& matrix) {
-    for (vector<int> row : matrix) {
-        for (int val : row) { cout << val << " "; }
-        cout << endl;
-    }
-}
+    # if 0 <= row < len(rbw) and 0 <= col - 1 < len(rbw[0]):
+    #     if rbw[row][col - 1] == 1: # check if its white
+    #         return check_white_row(grid, row, col - 1, num)
+    #     elif rbw[row][col - 1] == 2: # check if its black
+    #         return check_black_row(grid, row, col - 1, num)
 
 
-pair<int,int> select_unassigned_variable(const vector<vector<int>>& board){
-    return degree_heuristic(mrv(board));
-}
+    # if 0 <= row - 1 < len(cbw) and 0 <= col < len(cbw[0]):
+    #     if cbw[row - 1][col] == 1:
+    #         return check_white_col(grid, row - 1, col, num)
+    #     elif cbw[row - 1][col] == 2:
+    #         return check_black_col(grid, row - 1, col, num)
 
 
-bool is_unique(const vector<vector<int>>& g_assignment,
-               int row, int col, int val) {
-    for (int x : g_assignment[row]){
-        if (x == val) return false;
-    }
-    for (int r = 0; r < NUM_ROWS_COLS; ++r){
-        if (g_assignment[r][col] == val) return false;
-    }
-    int row_start = row / 3;
-    int col_start = col / 3;
-    for (int r : g_subgrid_to_values[pair<int, int>{row_start, col_start}]) {
-        if (r == val) { return false; }
-    }
-
-}
-// Verify that position violates horizontal constraints
-bool horizontal_dots(int row, int col, int val) {
-    if (g_horizontal_dots[row][col] == WHITE) {
-        if (col + 1 < NUM_ROWS_COLS) {
-            if (g_board[row][col + 1] != 0) {
-                return abs(val - g_board[row][col + 1] == 1);
-            }
-            return true; // tile was unpopulated
-        }
-    }
-    else if (g_horizontal_dots[row][col] == BLACK) {
-        if (col + 1 < NUM_ROWS_COLS) {
-            if (g_board[row][col + 1] != 0) {
-                float quotient = (float)g_board[row][col + 1] / (float)val;
-                return (quotient == 2 || quotient == 0.5);
-            }
-            return true;
-        }
-    }
-}
-
-// Verify if position violates vertical constraints
-bool vertical_dots(int row, int col, int val) {
-    if (g_vertical_dots[row][col] == WHITE) {
-        if (row + 1 < NUM_ROWS_COLS) {
-            if (g_board[row + 1][col] != 0) {
-                return abs(val - g_board[row + 1][col]) == 1;
-            }
-            return true;
-        }
-    }
-    else if (g_vertical_dots[row][col] == BLACK) {
-        if (row + 1 < NUM_ROWS_COLS) {
-            if (g_board[row + 1][col] != 0) {
-                float quotient = (float)g_board[row][col + 1] / (float)val;
-                return (quotient == 2 || quotient == 0.5);
-            }
-        }
-    }
-}
-
-// Verify whether a position violates dot constraints
-bool check_dot_constraints(int row, int col, int val) {
-    return horizontal_dots(row, col, val) && vertical_dots( row - !(row % 2), col, val);
-}
-bool consistent(const vector<vector<int>>& board, int row, int col, int val) {
-    return check_dot_constraints(row, col, val) && is_unique(board, row, col, val) ;
-}
-pair<int, int> degree_heuristic(const vector<pair<int,int>>& mrv_array) {
-    int constraints = 1; // all diff
-    int max_degree = 0; // track the highest num of constraints
-    size_t max_idx = 0; // update idx of element involved in most constraints
-    for (size_t i = 0; i < mrv_array.size(); i++) {
-        pair<int, int> coord = mrv_array[i];
-        if (g_horizontal_dots[coord.first][coord.second] != BLANK) {
-            constraints++;
-        }
-        if (g_vertical_dots[coord.first][coord.second] != BLANK) {
-            constraints++;
-        }
-        if (constraints > max_degree) {
-            max_idx = i;
-        }
-    }
-    return mrv_array[max_idx];
-}
-vector<pair<int,int>> mrv(const vector<vector<int>>& board) {
-    int min_count = 10;
-    vector<pair<int,int>> candidates;
-    for (int i = 0; i < 9; i++) {
-        for (int j = 0; j < 9; j++) {
-            if (board[i][j] != 0){continue;}
-            int legal_states = 0;
-            for (int val: DOMAIN){
-                if (consistent(board, i, j, val)){
-                    ++legal_states;
-                }
-                if (legal_states < min_count) {
-                    candidates.clear();
-                    candidates.push_back({i, j});
-                    min_count = legal_states;
-                } 
-                else if (legal_states == min_count) {
-                    candidates.push_back({i, j});
-                }
-            }
-        }
-    }
-    return candidates;
-}
 
 
-void initialize() {
-    for (int i = 0; i < NUM_ROWS_COLS; i++) {
-        for (int j = 0; j < NUM_ROWS_COLS; j++) {
-            pair<int, int> subgrid_coords = {i / 3, j / 3};
-            if (g_board[i][j] != 0) { // add val to set, row & cols
-                g_subgrid_to_values[subgrid_coords].insert(g_board[i][j]);
-            }
-        }
-    }
-}
+def mrv(grid, rbw, cbw):
+    candidates = []
+    min_legal_states = float("inf")
+    # iterate through every cell in the grid and count how many legal states they have
+    for r in range(9):
+        for c in range(9):
+            legal_states = 0
+            if grid[r][c] == 0: # skip assigned cells
+                for val in range(1,10):
+                    if isSafe(grid, r, c, val, rbw, cbw): legal_states += 1
+                #print("legal_states: " , legal_states)
+                if legal_states < min_legal_states:
+                    candidates = [(r, c)]
+                    min_legal_states = legal_states
+                elif legal_states == min_legal_states:
+                    candidates.append((r,c))
+    print("mrv candidates: ", candidates)
+    return candidates
 
 
-bool is_complete( vector<vector<int>> board) {
-    for (int r = 0; r < 9; r++) {
-        for (int c = 0; c < 9; c++) {
-            if (board[r][c] == 0) {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-
-bool backtrack(vector<vector<int>> board) {
-    //if every variable has a value??
-    if (is_complete(board)) return true;
-    //select unassigned variable with mrv and dh
-    pair<int, int> var = select_unassigned_variable(board);
-    // for each value in domain check if value is consistent with g_assignment 
-    for (int val : DOMAIN){
-        if (consistent(board, var.first, var.second, val)){
-            vector<vector<int>> next_board = board;
-            next_board[var.first][var.second] = val; 
-            if (backtrack(next_board) == true){
-                board = next_board;
-                return true;
-            }
-        }
+def degree_heuristic(mrv_results, rbw, cbw):
+    candidates = []
+    max_degree = -1
+    for coord in mrv_results:
+        degree = 0
         
-    }
-    return false;
-}
+        r, c = coord[0], coord[1]
+        #print(r, c)
+        # horizontal dot constraints              
+        if 0 <= c - 1 < len(rbw[0]) and 0 <= r < len(rbw):
+            if rbw[r][c - 1] != 0: degree += 1 
+        if 0 <= c + 1 < len(rbw[0]) and 0 <= r < len(rbw):
+            if  rbw[r][c] != 0: degree += 1
+        # vertical dot constraints
+        if 0 <= c < len(cbw[0]) and 0 <= r - 1 < len(cbw) :
+            if cbw[r - 1][c] != 0 : degree += 1 
+        if 0 <= c  < len(cbw[0]) and 0 <= r < len(cbw):
+            if cbw[r][c] != 0 : degree += 1
+        #print("degree: " ,degree)
+        if degree > max_degree:
+            candidates = [(r, c)]
+            max_degree = degree
+        elif degree == max_degree:
+            candidates.append((r,c))
+    print("dh candidates: ", candidates)
+    return candidates[0]
+
+def count_zeros(matrix):
+    count = 0
+    for r in range(len(matrix)):
+        for c in range(len(matrix[r])):
+            if matrix[r][c] == 0:
+                count += 1
+    return count
+    
+def select_unassigned_variable(grid, rbw, cbw):
+    return degree_heuristic(mrv(grid, rbw, cbw), rbw, cbw)
+
+def solveSudoku(grid, rbw, cbw):
+    
+    # grid is complete
+    #if g_assigned_cells == 81: return True
+    # print(count_zeros(grid))
+    
+    if count_zeros(grid) == 0: return True
+    # if (row == N - 1 and col == N):
+    #     return True
+    
+    # Traverse from top to bottom
+    # if col == N:
+    #     row += 1
+    #     col = 0
+    
+    row, col = select_unassigned_variable(grid, rbw, cbw)
+    
+    print(row, col)
+
+    # num represents all possible values from [1 to 9] one by one
+    for num in range(1, N + 1):
+
+        if isSafe(grid, row, col, num, rbw, cbw):
+            #print("Here 1")
+            # not doing MRV, not tracking invalid values
+            #coord = degree_heuristic(mrv(grid, rbw, cbw))
+            grid[row][col] = num 
+            if solveSudoku(grid, rbw, cbw):
+                return True 
+        #print("Done", num)
+        grid[row][col] = 0 #undo assignment if backtracking yields no solution
+
+    
+        
+    return False
+
+
+def parse_file():
+    if (len(sys.argv) != 2): 
+        print("Input file required")
+        return []
+    
+    # Initialize empty matrices
+    matrix_9x9 = [] # grid
+    matrix_9x8 = [] # rbw
+    matrix_8x9 = [] # cbw
+    
+    with open(sys.argv[1], 'r') as file:
+        lines = file.readlines()
+        
+        # Assume matrices are separated by a blank line
+        # Split the content into the three sections based on blank lines
+        sections = ''.join(lines).strip().split("\n\n")
+        
+        # Load 9x9 matrix
+        for line in sections[0].splitlines():
+            matrix_9x9.append(list(map(int, line.split())))
+        
+        # Load 9x8 matrix
+        for line in sections[1].splitlines():
+            matrix_9x8.append(list(map(int, line.split())))
+        
+        # Load 8x9 matrix
+        for line in sections[2].splitlines():
+            matrix_8x9.append(list(map(int, line.split())))
+    
+    return matrix_9x9, matrix_9x8, matrix_8x9
+
+
+def main():
+    grid, rbw, cbw  = parse_file()
+    # printing(grid)
+    # printing(rbw)
+    # printing(cbw)   
+
+    
+    if (solveSudoku(grid, rbw, cbw)):
+        printing(grid)
+        print()
+    else:
+        printing(grid)
+        print("no solution  exists ")
+        print()
+    
+main()
