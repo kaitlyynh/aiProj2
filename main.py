@@ -12,12 +12,12 @@ def printing(arr):
 
 
 def check_white(other, num): #White dot constraint
-    if other == 0: return False
+    if other == 0: return True
     return abs(other - num) == 1
     
 def check_black(other, num): # Black dot constraint
-    if other == 0: return False
-    return (other / num) == 0.5 or (other / num) == 2
+    if other == 0: return True
+    return (other * 2 == num)  or (num * 2) == other
 
 
 def row_col_subgrid_traverse(grid, row, col, action): 
@@ -26,14 +26,18 @@ def row_col_subgrid_traverse(grid, row, col, action):
     and call action on each cell 
     """
     for c in range(9):
+        if c == col: continue
         action(grid[row][c])
 
     for r in range(9):
+        if r == row: continue
         action(grid[r][col])
     startRow = row - row % 3
     startCol = col - col % 3
     for i in range(3):
+        if i == row: continue
         for j in range(3):
+            if j == col: continue
             action(grid[i + startRow][j + startCol])
 
 
@@ -52,15 +56,15 @@ def dot_traverse(grid, row, col, hor_dots, vert_dots, action):
     # case 2 : dot b/w me and right
     # col 
     if 0 <= row < len(hor_dots) and 0 <= col < len(hor_dots[0]):
-        action(hor_dots[row][col - 1], grid[row][col + 1])
+        action(hor_dots[row][col], grid[row][col + 1])
     #case 3: dot b/w me and above
     # row - 1 
     if 0 <= row - 1 < len(vert_dots) and 0 <= col  < len(vert_dots[0]):
-        action(hor_dots[row][col - 1], grid[row - 1][col])
+        action(vert_dots[row - 1][col], grid[row - 1][col])
     # case 4: dot b/w me and below
     # row
     if 0 <= row < len(vert_dots) and 0 <= col < len(vert_dots[0]):
-        action(hor_dots[row][col - 1], grid[row + 1][col])
+        action(vert_dots[row][col], grid[row + 1][col])
     
 
 def isSafe(grid, row, col, num, hor_dots, vert_dots): # pass in RowBlackWhite (horizontal constraints) matrix
@@ -87,8 +91,9 @@ def isSafe(grid, row, col, num, hor_dots, vert_dots): # pass in RowBlackWhite (h
     return True
 
 def mrv(grid, hor_dots, vert_dots):
+    print("IN MRV")
     candidates = []
-    min_legal_states = float("inf")
+    min_legal_states = 10
     # iterate through every cell in the grid and count how many legal states they have
     for r in range(9):
         for c in range(9):
@@ -96,37 +101,51 @@ def mrv(grid, hor_dots, vert_dots):
             if grid[r][c] == 0: # skip assigned cells
                 for val in range(1,10):
                     if isSafe(grid, r, c, val, hor_dots, vert_dots): legal_states += 1
-                #print("legal_states: " , legal_states)
+                print("legal_states: " , legal_states)
                 if legal_states < min_legal_states:
                     candidates = [(r, c)]
                     min_legal_states = legal_states
                 elif legal_states == min_legal_states:
                     candidates.append((r,c))
     print("mrv candidates: ", candidates)
+    if len(candidates) == 0: print("no mrv's\n")
     return candidates
 
+def row_grid_sub_degs(value, deg):
+    if value == 0:  # Unassigned cells contribute to the degree
+        deg += 1
+    
+
+def dot_check(dot, cell, deg):
+    if dot != 0 and cell == 0:  # Unassigned cells with dot constraints
+        deg += 1
 
 def degree_heuristic(grid, mrv_results, hor_dots, vert_dots):
-    candidates = []
+    print("IN DH")
     max_degree = -1
-    non_loc_degs = 0
-    def row_grid_sub_degs(value): 
-        nonlocal non_loc_degs
-        if value == 0:
-            non_loc_degs += 1
+    max_var = tuple()
 
-    def dot_check(dot, cell):
-        nonlocal non_loc_degs
-        if dot != 0 and cell == 0: non_loc_degs += 1
-        
     for coord in mrv_results:
         degree = 0
-        non_loc_degs = 0 
         r, c = coord[0], coord[1]
-        row_col_subgrid_traverse(grid, r, c, row_grid_sub_degs)
-        degree += row_grid_sub_degs
+
+        # Reset non_loc_degs for each candidate
         
+
+        # Count degree based on the row, column, and subgrid
+        row_col_subgrid_traverse(grid, r, c, lambda value: row_grid_sub_degs(value, degree))
         
+
+        # Count degree based on the dot constraints
+        dot_traverse(grid, r, c, hor_dots, vert_dots, lambda dot, cell: dot_check(dot, cell, degree))
+        
+        print(coord, degree)
+        # Track the candidate with the highest degree
+        if degree > max_degree:
+            max_degree = degree
+            max_var = coord
+        print(coord, degree)
+    return max_var
        
 
 def count_zeros(matrix):
@@ -138,7 +157,8 @@ def count_zeros(matrix):
     return count
     
 def select_unassigned_variable(grid, hor_dots, vert_dots):
-    return degree_heuristic(grid, mrv(grid, hor_dots, vert_dots), hor_dots, vert_dots)
+    return degree_heuristic(grid, mrv(grid, hor_dots, vert_dots), \
+                            hor_dots, vert_dots)
 
 def solveSudoku(grid, hor_dots, vert_dots):
     
@@ -155,8 +175,8 @@ def solveSudoku(grid, hor_dots, vert_dots):
     #     row += 1
     #     col = 0
     
-    #row, col = select_unassigned_variable(grid, hor_dots, vert_dots)
-    row, col = mrv(grid, hor_dots, vert_dots)[0]
+    row, col = select_unassigned_variable(grid, hor_dots, vert_dots)
+    #row, col = mrv(grid, hor_dots, vert_dots)[0]
     print(row, col)
 
     # num represents all possible values from [1 to 9] one by one
@@ -171,9 +191,6 @@ def solveSudoku(grid, hor_dots, vert_dots):
                 return True 
         #print("Done", num)
         grid[row][col] = 0 #undo assignment if backtracking yields no solution
-
-    
-        
     return False
 
 
