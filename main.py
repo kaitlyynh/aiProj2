@@ -12,6 +12,14 @@ def printing(arr):
         print()
     print()
 
+def construct_grid_string(arr):
+    contents = ""
+    for i in range(len(arr)):
+        for j in range(len(arr[i])):
+            contents += str(arr[i][j]) + " "
+        contents += "\n"
+    return contents
+
 # Verify that white dot constraint is satisfied
 def check_white(other, num):
     if other == 0: return True
@@ -209,16 +217,20 @@ def parse_file():
 
     return matrix_9x9, matrix_9x8, matrix_8x9
 
-
+def write_to_output(grid, filename):
+    fileObj = open(filename, "w")
+    fileObj.write(construct_grid_string(grid))
+    fileObj.close()
 def main():
     grid, hor_dots, vert_dots = parse_file()
 
     if (backtrack(grid, hor_dots, vert_dots)):
         printing(grid)
         print()
+        write_to_output(grid, "OutputFile.txt")
     else:
         printing(grid)
-        print("no solution  exists ")
+        print("Could not solve, no solution exists")
         print()
 
 main()
